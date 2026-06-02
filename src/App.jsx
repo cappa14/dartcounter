@@ -435,7 +435,7 @@ function SetupMatch({ setup, setSetup, go, start }) {
             First to
           </button>
 
-          <div />
+        
 
           <button
             className={setup.type === "sets" ? "active" : ""}

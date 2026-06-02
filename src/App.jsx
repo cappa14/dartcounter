@@ -241,7 +241,9 @@ function App() {
       let steps = 0;
       let label = segment.label;
 
-      if (typeof target === "number" && segment.num === target) steps = segment.mult;
+    if (typeof target === "number" && segment.num === target) {
+  steps = segment.mult;
+}
       if (target === "Outer Bull" && segment.label === "Outer Bull") steps = 1;
       if (target === "Bullseye" && segment.label === "Bull") steps = 1;
 

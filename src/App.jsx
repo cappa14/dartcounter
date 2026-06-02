@@ -1,9 +1,7 @@
-
 import React, { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ArrowLeft, RotateCcw, Settings } from "lucide-react";
 import "./styles.css";
-import dartboardUrl from "../assets/dartboard.png";
 
 const NUMBERS = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
 
@@ -20,6 +18,10 @@ function emptyStats() {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function neededLegs(mode, length) {
+  return mode === "firstto" ? length : Math.floor(length / 2) + 1;
 }
 
 function detectSegmentFromEvent(event) {
@@ -45,9 +47,10 @@ function detectSegmentFromEvent(event) {
   return { label: "MIS", value: 0, num: null, mult: 0 };
 }
 
-function callerText(points, remaining, bust, won) {
+function callerText(points, remaining, bust, wonLeg, wonMatch) {
   if (bust) return "BUST!";
-  if (won) return "GAME SHOT!";
+  if (wonMatch) return "GAME SHOT AND THE MATCH!";
+  if (wonLeg) return "GAME SHOT!";
   if (points === 180) return "ONE HUNDRED AND EIGHTY!";
   if (points === 140) return "ONE HUNDRED AND FORTY!";
   if (points === 100) return "ONE HUNDRED!";
@@ -63,8 +66,12 @@ function App() {
   const [matchSetup, setMatchSetup] = useState({
     players: ["", "", "", ""],
     start: 501,
-    out: "double"
+    out: "double",
+    mode: "bestof",
+    type: "legs",
+    length: 3
   });
+
   const [clockSetup, setClockSetup] = useState({
     players: ["", "", "", ""]
   });
@@ -79,17 +86,27 @@ function App() {
 
   function startMatch() {
     const players = matchSetup.players.map(p => p.trim()).filter(Boolean);
-    const finalPlayers = players.length ? players : ["Casper"];
+    if (players.length < 1) {
+      alert("Vul minimaal 1 speler in.");
+      return;
+    }
+
     setMatch({
-      players: finalPlayers,
-      scores: finalPlayers.map(() => Number(matchSetup.start)),
-      stats: finalPlayers.map(emptyStats),
+      players,
+      scores: players.map(() => Number(matchSetup.start)),
+      stats: players.map(emptyStats),
       turn: 0,
       history: [],
       start: Number(matchSetup.start),
       out: matchSetup.out,
-      darts: []
+      darts: [],
+      mode: matchSetup.mode,
+      type: matchSetup.type,
+      length: Number(matchSetup.length),
+      legNumber: 1,
+      matchWinner: null
     });
+
     setTyped("");
     setInputMode("score");
     setCaller("GAME ON");
@@ -98,23 +115,28 @@ function App() {
 
   function startClock() {
     const players = clockSetup.players.map(p => p.trim()).filter(Boolean);
-    const finalPlayers = players.length ? players : ["Casper"];
+    if (players.length < 1) {
+      alert("Vul minimaal 1 speler in.");
+      return;
+    }
+
     const sequence = [...Array(20)].map((_, i) => i + 1).concat(["Outer Bull", "Bullseye"]);
     setClock({
-      players: finalPlayers,
+      players,
       sequence,
-      targetIndex: finalPlayers.map(() => 0),
-      stats: finalPlayers.map(emptyStats),
+      targetIndex: players.map(() => 0),
+      stats: players.map(emptyStats),
       turn: 0,
       darts: [],
       history: []
     });
+
     setCaller("GAME ON");
     setScreen("clock");
   }
 
   function processMatchScore(points, dartCount) {
-    if (!match) return;
+    if (!match || match.matchWinner) return;
     if (points < 0 || points > 180) {
       alert("Score moet tussen 0 en 180 zijn.");
       return;
@@ -123,27 +145,48 @@ function App() {
     setMatch(prev => {
       const next = clone(prev);
       next.history.push(clone(prev));
+
       const i = next.turn;
       const newScore = next.scores[i] - points;
       let bust = false;
-      let won = false;
+      let wonLeg = false;
+      let wonMatch = false;
 
-      if (newScore < 0 || (next.out === "double" && newScore === 1)) bust = true;
-      else if (newScore === 0) won = true;
+      if (newScore < 0 || (next.out === "double" && newScore === 1)) {
+        bust = true;
+      } else if (newScore === 0) {
+        wonLeg = true;
+      }
 
       if (!bust) {
         next.scores[i] = newScore;
         next.stats[i].last = points;
         next.stats[i].darts += dartCount;
         next.stats[i].totalScored += points;
-        if (won) next.stats[i].legs += 1;
+      }
+
+      if (wonLeg) {
+        next.stats[i].legs += 1;
+        const required = neededLegs(next.mode, next.length);
+
+        if (next.stats[i].legs >= required) {
+          next.matchWinner = next.players[i];
+          wonMatch = true;
+        } else {
+          next.scores = next.players.map(() => next.start);
+          next.stats = next.stats.map(s => ({ ...s, last: "-" }));
+          next.legNumber += 1;
+        }
       }
 
       next.darts = [];
-      setCaller(callerText(points, next.scores[i], bust, won));
-      next.turn = (next.turn + 1) % next.players.length;
+      setCaller(callerText(points, next.scores[i], bust, wonLeg, wonMatch));
+
+      if (!wonMatch) next.turn = (next.turn + 1) % next.players.length;
+
       return next;
     });
+
     setTyped("");
   }
 
@@ -153,13 +196,15 @@ function App() {
 
   function addMatchDart(segment) {
     setMatch(prev => {
-      if (!prev || prev.darts.length >= 3) return prev;
+      if (!prev || prev.darts.length >= 3 || prev.matchWinner) return prev;
       const next = clone(prev);
       next.darts.push(segment);
+
       if (next.darts.length === 3) {
         const total = next.darts.reduce((sum, d) => sum + d.value, 0);
         setTimeout(() => processMatchScore(total, next.darts.length), 0);
       }
+
       return next;
     });
   }
@@ -308,8 +353,8 @@ function Home({ go }) {
       <div className="profile-card">
         <div className="avatar">D</div>
         <div>
-          <h2>Casper & vrienden</h2>
-          <p>Lokale dart-app met twee spellen</p>
+          <h2>Spelers klaar?</h2>
+          <p>Maak een wedstrijd aan of speel rond de klok</p>
         </div>
       </div>
       <div className="home-grid">
@@ -327,9 +372,24 @@ function Home({ go }) {
 }
 
 function SetupMatch({ setup, setSetup, go, start }) {
+  function updatePlayer(index, value) {
+    const players = [...setup.players];
+    players[index] = value;
+    setSetup({ ...setup, players });
+  }
+
+  function changeLength(delta) {
+    const step = setup.mode === "bestof" ? 2 : 1;
+    const min = 1;
+    const max = 21;
+    const next = Math.max(min, Math.min(max, setup.length + delta * step));
+    setSetup({ ...setup, length: next });
+  }
+
   return (
     <section className="screen">
       <Top title="Wedstrijd" back={() => go("home")} />
+
       <div className="panel">
         <h2>Spelers</h2>
         {setup.players.map((p, i) => (
@@ -337,34 +397,91 @@ function SetupMatch({ setup, setSetup, go, start }) {
             <span>Speler {i + 1}{i > 1 ? " optioneel" : ""}</span>
             <input
               value={p}
-              placeholder="Naam"
-              onChange={e => {
-                const players = [...setup.players];
-                players[i] = e.target.value;
-                setSetup({ ...setup, players });
-              }}
+              placeholder={i < 2 ? `Naam speler ${i + 1}` : "Naam optioneel"}
+              onChange={e => updatePlayer(i, e.target.value)}
             />
           </label>
         ))}
       </div>
+
       <div className="panel">
-        <h2>Instellingen</h2>
-        <label>
-          <span>Spelvorm</span>
-          <select value={setup.start} onChange={e => setSetup({ ...setup, start: Number(e.target.value) })}>
-            <option value={301}>301</option>
-            <option value={501}>501</option>
-            <option value={701}>701</option>
-          </select>
-        </label>
-        <label>
-          <span>Uitgooien</span>
-          <select value={setup.out} onChange={e => setSetup({ ...setup, out: e.target.value })}>
-            <option value="double">Double out</option>
-            <option value="straight">Straight out</option>
-          </select>
-        </label>
+        <h2>Spelinstellingen</h2>
+
+        <div className="match-settings-grid">
+          <button
+            className={setup.mode === "bestof" ? "active" : ""}
+            onClick={() => setSetup({ ...setup, mode: "bestof", length: setup.length % 2 === 0 ? setup.length + 1 : setup.length })}
+          >
+            Best of
+          </button>
+
+          <div className="counter-box">
+            <button onClick={() => changeLength(1)}>⌃</button>
+            <strong>{setup.length}</strong>
+            <button onClick={() => changeLength(-1)}>⌄</button>
+          </div>
+
+          <button
+            className={setup.type === "legs" ? "active" : ""}
+            onClick={() => setSetup({ ...setup, type: "legs" })}
+          >
+            Legs
+          </button>
+
+          <button
+            className={setup.mode === "firstto" ? "active" : ""}
+            onClick={() => setSetup({ ...setup, mode: "firstto" })}
+          >
+            First to
+          </button>
+
+          <div />
+
+          <button
+            className={setup.type === "sets" ? "active" : ""}
+            onClick={() => setSetup({ ...setup, type: "sets" })}
+          >
+            Sets
+          </button>
+        </div>
+
+        <p className="setting-summary">
+          {setup.mode === "bestof"
+            ? `Best of ${setup.length} ${setup.type}`
+            : `First to ${setup.length} ${setup.type}`}
+        </p>
       </div>
+
+      <div className="panel">
+        <h2>Spel</h2>
+        <div className="choice-row">
+          {[301, 501, 701].map(score => (
+            <button
+              key={score}
+              className={setup.start === score ? "active" : ""}
+              onClick={() => setSetup({ ...setup, start: score })}
+            >
+              {score}
+            </button>
+          ))}
+        </div>
+
+        <div className="choice-row">
+          <button
+            className={setup.out === "straight" ? "active" : ""}
+            onClick={() => setSetup({ ...setup, out: "straight" })}
+          >
+            Straight out
+          </button>
+          <button
+            className={setup.out === "double" ? "active" : ""}
+            onClick={() => setSetup({ ...setup, out: "double" })}
+          >
+            Double out
+          </button>
+        </div>
+      </div>
+
       <button className="start-button" onClick={start}>Start wedstrijd</button>
     </section>
   );
@@ -381,7 +498,7 @@ function SetupClock({ setup, setSetup, go, start }) {
             <span>Speler {i + 1}{i > 0 ? " optioneel" : ""}</span>
             <input
               value={p}
-              placeholder="Naam"
+              placeholder={i === 0 ? "Naam speler 1" : "Naam optioneel"}
               onChange={e => {
                 const players = [...setup.players];
                 players[i] = e.target.value;
@@ -405,6 +522,7 @@ function MatchScreen({
   addDart, removeLastDart, submitBoard, undo, caller, go
 }) {
   const score = match.scores[match.turn];
+  const required = neededLegs(match.mode, match.length);
 
   function pressKey(k) {
     if (k === "⌫") setTyped(typed.slice(0, -1));
@@ -417,36 +535,47 @@ function MatchScreen({
   return (
     <section className="screen">
       <Top title={`${match.start}`} back={() => go("home")} right={<button onClick={undo}><RotateCcw size={18}/></button>} />
-      <PlayerScoreCards players={match.players} scores={match.scores} stats={match.stats} turn={match.turn} type="score" />
-      <div className="caller">{caller}</div>
-      {CHECKOUTS[score] && <div className="checkout">Checkout: {CHECKOUTS[score]}</div>}
 
-      <div className="tabs">
-        <button className={inputMode === "score" ? "active" : ""} onClick={() => setInputMode("score")}>Score invullen</button>
-        <button className={inputMode === "board" ? "active" : ""} onClick={() => setInputMode("board")}>Dartbord</button>
+      <div className="match-info-pill">
+        {match.matchWinner
+          ? `${match.matchWinner} wint de wedstrijd`
+          : `${match.mode === "bestof" ? "Best of" : "First to"} ${match.length} ${match.type} · Leg ${match.legNumber}`}
       </div>
 
-      {inputMode === "score" && (
-        <>
-          <div className="submit-bar">
-            <input readOnly value={typed} placeholder="Voer score in" />
-            <button onClick={submitTypedScore}>Submit</button>
-          </div>
-          <div className="keypad">
-            {[1,2,3,4,5,6,7,8,9,"⌫",0,"MIS"].map(k => (
-              <button key={k} onClick={() => pressKey(k)}>{k}</button>
-            ))}
-          </div>
-        </>
-      )}
+      <PlayerScoreCards players={match.players} scores={match.scores} stats={match.stats} turn={match.turn} type="score" required={required} />
+      <div className="caller">{caller}</div>
+      {CHECKOUTS[score] && !match.matchWinner && <div className="checkout">Checkout: {CHECKOUTS[score]}</div>}
 
-      {inputMode === "board" && (
-        <BoardInput
-          darts={match.darts}
-          onBoardClick={seg => addDart(seg)}
-          onRemove={removeLastDart}
-          onSubmit={submitBoard}
-        />
+      {!match.matchWinner && (
+        <>
+          <div className="tabs">
+            <button className={inputMode === "score" ? "active" : ""} onClick={() => setInputMode("score")}>Score invullen</button>
+            <button className={inputMode === "board" ? "active" : ""} onClick={() => setInputMode("board")}>Dartbord</button>
+          </div>
+
+          {inputMode === "score" && (
+            <>
+              <div className="submit-bar">
+                <input readOnly value={typed} placeholder="Voer score in" />
+                <button onClick={submitTypedScore}>Submit</button>
+              </div>
+              <div className="keypad">
+                {[1,2,3,4,5,6,7,8,9,"⌫",0,"MIS"].map(k => (
+                  <button key={k} onClick={() => pressKey(k)}>{k}</button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {inputMode === "board" && (
+            <BoardInput
+              darts={match.darts}
+              onBoardClick={seg => addDart(seg)}
+              onRemove={removeLastDart}
+              onSubmit={submitBoard}
+            />
+          )}
+        </>
       )}
     </section>
   );
@@ -472,15 +601,17 @@ function ClockScreen({ clock, addDart, submitTurn, removeLastDart, undo, caller,
   );
 }
 
-function PlayerScoreCards({ players, scores, stats, turn, type, clock }) {
+function PlayerScoreCards({ players, scores, stats, turn, type, clock, required }) {
   return (
     <div className="two-player-cards">
       {players.map((player, i) => {
         const active = i === turn;
+
         if (type === "clock") {
           const target = clock.sequence[clock.targetIndex[i]] || "Done";
           const attempts = clock.stats[i].hits + clock.stats[i].misses;
           const pct = attempts ? Math.round((clock.stats[i].hits / attempts) * 100) : 0;
+
           return (
             <div key={player + i} className={`player-card ${active ? "active" : ""}`}>
               <div className="player-line"><span className="turn-arrow">▶</span><div className="avatar">D</div><strong>{player}</strong></div>
@@ -491,13 +622,14 @@ function PlayerScoreCards({ players, scores, stats, turn, type, clock }) {
             </div>
           );
         }
+
         return (
           <div key={player + i} className={`player-card ${active ? "active" : ""}`}>
             <div className="player-line"><span className="turn-arrow">▶</span><div className="avatar">D</div><strong>{player}</strong></div>
             <div className="target-circle">{scores[i]}</div>
             <small>SCORE</small>
             <p>Laatste <b>{stats[i].last}</b></p>
-            <p>Darts <b>{stats[i].darts}</b></p>
+            <p>Legs <b>{stats[i].legs}/{required}</b></p>
           </div>
         );
       })}
@@ -518,7 +650,7 @@ function BoardInput({ darts, onBoardClick, onRemove, onSubmit }) {
         {darts.length ? `${darts.map(d => d.label).join(" · ")} (${3 - darts.length} over)` : "Tik je 3 pijlen aan"}
       </div>
       <div className="real-board-wrap">
-        <img src={dartboardUrl} className="real-board" alt="Dartbord" />
+        <img src="/assets/dartboard.png" className="real-board" alt="Dartbord" />
         <button ref={boardRef} className="board-overlay" aria-label="Klikbaar dartbord" onClick={handleClick}></button>
       </div>
       <div className="board-actions">

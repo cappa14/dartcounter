@@ -248,8 +248,11 @@ function App() {
       if (target === "Bullseye" && segment.label === "Bull") steps = 1;
 
       if (steps === 0 && segment.label !== "MIS") label = `${segment.label} (MIS)`;
+
       next.darts.push({ label, steps });
-      return next;
+      next.targetIndex[next.turn] += steps;
+
+return next;
     });
   }
 
@@ -271,7 +274,7 @@ function App() {
         next.stats[i].darts += 1;
       });
 
-      next.targetIndex[i] += totalSteps;
+      // next.targetIndex[i] += totalSteps;
       const target = next.sequence[next.targetIndex[i]] || "Finished";
       setCaller(target === "Finished" ? "GAME SHOT!" : `MOVING TO ${String(target).toUpperCase()}`);
       next.darts = [];

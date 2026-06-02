@@ -650,7 +650,7 @@ function BoardInput({ darts, onBoardClick, onRemove, onSubmit }) {
         {darts.length ? `${darts.map(d => d.label).join(" · ")} (${3 - darts.length} over)` : "Tik je 3 pijlen aan"}
       </div>
       <div className="real-board-wrap">
-        <img src="/assets/dartboard.png" className="real-board" alt="Dartbord" />
+       <img src={dartboardUrl} className="real-board" alt="Dartbord" />
         <button ref={boardRef} className="board-overlay" aria-label="Klikbaar dartbord" onClick={handleClick}></button>
       </div>
       <div className="board-actions">

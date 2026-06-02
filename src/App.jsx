@@ -249,8 +249,10 @@ function App() {
 
       if (steps === 0 && segment.label !== "MIS") label = `${segment.label} (MIS)`;
 
-      next.darts.push({ label, steps });
-      next.targetIndex[next.turn] += steps;
+    const previousTargetIndex = next.targetIndex[next.turn];
+
+next.darts.push({ label, steps, previousTargetIndex });
+next.targetIndex[next.turn] += steps;
 
 return next;
     });
@@ -289,11 +291,9 @@ return next;
     const next = clone(prev);
 
     const removed = next.darts.pop();
-    if (removed) {
-      next.targetIndex[next.turn] -= removed.steps;
-      if (next.targetIndex[next.turn] < 0) {
-        next.targetIndex[next.turn] = 0;
-      }
+
+    if (removed && removed.previousTargetIndex !== undefined) {
+      next.targetIndex[next.turn] = removed.previousTargetIndex;
     }
 
     return next;

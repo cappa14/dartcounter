@@ -66,7 +66,7 @@ function App() {
     out: "double"
   });
   const [clockSetup, setClockSetup] = useState({
-    players: ["Casper", "", "", ""]
+    players: ["", "", "", ""]
   });
 
   const [match, setMatch] = useState(null);

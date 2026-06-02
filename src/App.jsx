@@ -283,14 +283,22 @@ return next;
     });
   }
 
-  function removeLastClockDart() {
-    setClock(prev => {
-      if (!prev || !prev.darts.length) return prev;
-      const next = clone(prev);
-      next.darts.pop();
-      return next;
-    });
-  }
+ function removeLastClockDart() {
+  setClock(prev => {
+    if (!prev || !prev.darts.length) return prev;
+    const next = clone(prev);
+
+    const removed = next.darts.pop();
+    if (removed) {
+      next.targetIndex[next.turn] -= removed.steps;
+      if (next.targetIndex[next.turn] < 0) {
+        next.targetIndex[next.turn] = 0;
+      }
+    }
+
+    return next;
+  });
+}
 
   function clockUndo() {
     setClock(prev => {

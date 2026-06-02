@@ -212,10 +212,32 @@ select{
 .match-settings-grid{
   display:grid;
   grid-template-columns:1fr 86px 1fr;
-  grid-template-rows:64px 64px;
+  grid-template-areas:
+    "bestof counter legs"
+    "firstto counter sets";
   gap:10px;
   align-items:stretch;
   margin-top:6px;
+}
+
+.match-settings-grid button:nth-child(1){
+  grid-area:bestof;
+}
+
+.counter-box{
+  grid-area:counter;
+}
+
+.match-settings-grid button:nth-child(3){
+  grid-area:legs;
+}
+
+.match-settings-grid button:nth-child(4){
+  grid-area:firstto;
+}
+
+.match-settings-grid button:nth-child(5){
+  grid-area:sets;
 }
 
 .match-settings-grid button{

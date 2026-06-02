@@ -61,7 +61,7 @@ function App() {
   const [inputMode, setInputMode] = useState("score");
 
   const [matchSetup, setMatchSetup] = useState({
-    players: ["Casper", "Tom", "", ""],
+    players: ["", "", "", ""],
     start: 501,
     out: "double"
   });

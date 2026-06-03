@@ -679,7 +679,6 @@ function BoardInput({ darts, onBoardClick, onRemove, onSubmit }) {
     </>
   );
 }
-}
  
 function CameraPanel() {
   const videoRef = useRef(null);

@@ -724,7 +724,51 @@ function CameraPanel() {
     </div>
   );
 }
+function CameraPanel() {
+  const videoRef = useRef(null);
 
+  function startCamera() {
+    navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: "environment"
+        }
+      })
+      .then(stream => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch(err => {
+        alert("Camera niet beschikbaar");
+        console.error(err);
+      });
+  }
+
+  return (
+    <div className="panel">
+      <h2>Camera detectie</h2>
+
+      <button
+        className="green"
+        onClick={startCamera}
+      >
+        Start camera
+      </button>
+
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        style={{
+          width: "100%",
+          marginTop: "12px",
+          borderRadius: "16px"
+        }}
+      />
+    </div>
+  );
+}
 function Top({ title, back, right }) {
   return (
     <header className="topbar">

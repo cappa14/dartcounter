@@ -562,10 +562,11 @@ function MatchScreen({
 
       {!match.matchWinner && (
         <>
-          <div className="tabs">
-            <button className={inputMode === "score" ? "active" : ""} onClick={() => setInputMode("score")}>Score invullen</button>
-            <button className={inputMode === "board" ? "active" : ""} onClick={() => setInputMode("board")}>Dartbord</button>
-          </div>
+         <div className="tabs three">
+  <button className={inputMode === "score" ? "active" : ""} onClick={() => setInputMode("score")}>Score</button>
+  <button className={inputMode === "board" ? "active" : ""} onClick={() => setInputMode("board")}>Dartbord</button>
+  <button className={inputMode === "camera" ? "active" : ""} onClick={() => setInputMode("camera")}>Camera</button>
+</div>
 
           {inputMode === "score" && (
             <>
@@ -581,14 +582,18 @@ function MatchScreen({
             </>
           )}
 
-          {inputMode === "board" && (
-            <BoardInput
-              darts={match.darts}
-              onBoardClick={seg => addDart(seg)}
-              onRemove={removeLastDart}
-              onSubmit={submitBoard}
-            />
-          )}
+        {inputMode === "board" && (
+  <BoardInput
+    darts={match.darts}
+    onBoardClick={seg => addDart(seg)}
+    onRemove={removeLastDart}
+    onSubmit={submitBoard}
+  />
+)}
+
+{inputMode === "camera" && (
+  <CameraPanel />
+)}
         </>
       )}
     </section>
@@ -672,6 +677,51 @@ function BoardInput({ darts, onBoardClick, onRemove, onSubmit }) {
         <button className="green" onClick={onSubmit}>Submit</button>
       </div>
     </>
+  );
+}
+}
+ 
+function CameraPanel() {
+  const videoRef = useRef(null);
+  const [status, setStatus] = useState("Camera staat uit");
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }
+        },
+        audio: false
+      });
+
+      videoRef.current.srcObject = stream;
+      setStatus("Camera staat aan");
+    } catch (error) {
+      setStatus("Camera kon niet starten. Controleer je toestemming.");
+    }
+  }
+
+  function stopCamera() {
+    const stream = videoRef.current?.srcObject;
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setStatus("Camera staat uit");
+  }
+
+  return (
+    <div className="camera-panel">
+      <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
+
+      <div className="camera-actions">
+        <button className="green" onClick={startCamera}>Start camera</button>
+        <button className="grey" onClick={stopCamera}>Stop</button>
+      </div>
+
+      <p>{status}</p>
+      <small>Dit is nu alleen live beeld. Later koppelen we hier scoreherkenning aan.</small>
+    </div>
   );
 }
 
